@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MACE — Multi-Agent Consensus Engine</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #161b22;
+      --surface2:  #1c2333;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #58a6ff;
+      --architect: #3b82f6;
+      --auditor:   #ef4444;
+      --pragmatist:#22c55e;
+      --contrarian:#a855f7;
+      --consensus: #f59e0b;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    #sidebar {
+      width: 280px;
+      min-height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #sidebar-header {
+      padding: 1.25rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    #sidebar-header h1 {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+    #sidebar-header p {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+
+    #debate-list {
+      overflow-y: auto;
+      flex: 1;
+      padding: 0.5rem;
+    }
+
+    .debate-item {
+      padding: 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      margin-bottom: 0.25rem;
+      transition: background 0.15s;
+    }
+    .debate-item:hover { background: var(--surface2); }
+    .debate-item.active {
+      background: var(--surface2);
+      border-color: var(--accent);
+    }
+    .debate-item .item-topic {
+      font-size: 0.8rem;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .debate-item .item-meta {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.3rem;
+      align-items: center;
+    }
+    .badge {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 999px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-completed { background: #1a3a1a; color: #4ade80; }
+    .badge-in-progress { background: #1a2a3a; color: #60a5fa; }
+    .item-date {
+      font-size: 0.65rem;
+      color: var(--muted);
+    }
+
+    #sidebar-empty {
+      padding: 2rem 1rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    /* ── Main Content ─────────────────────────────────────── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    #welcome {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+      color: var(--muted);
+    }
+    #welcome svg { opacity: 0.3; }
+    #welcome h2 { font-size: 1.1rem; color: var(--muted); font-weight: 500; }
+    #welcome p { font-size: 0.8rem; }
+
+    #debate-view { display: none; flex-direction: column; flex: 1; min-width: 0; }
+
+    /* ── Debate Header ──────────────────────────────────────── */
+    #debate-header {
+      padding: 1.5rem 2rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    #debate-header h2 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      line-height: 1.4;
+    }
+    #debate-meta {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .meta-item strong { color: var(--text); }
+
+    /* Consensus meter */
+    .consensus-meter {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .meter-track {
+      width: 120px;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .meter-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #22c55e 100%);
+      transition: width 0.5s ease;
+    }
+
+    /* ── Tabs ─────────────────────────────────────────────── */
+    #tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      padding: 0.75rem 1.25rem;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Tab Content ─────────────────────────────────────── */
+    #tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+    }
+
+    /* Brief tab */
+    .brief-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    @media (max-width: 768px) { .brief-grid { grid-template-columns: 1fr; } }
+
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .info-card h4 {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    .info-card p, .info-card li {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .info-card ul { list-style: none; }
+    .info-card li::before { content: "→ "; color: var(--accent); }
+
+    /* Round tab */
+    .round-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .round-type-badge {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .type-divergence { background: #1a2a3a; color: #60a5fa; }
+    .type-cross_examination { background: #2a1a1a; color: #f87171; }
+    .type-forced_compromise { background: #2a2a1a; color: #fbbf24; }
+
+    .framework-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+
+    .fw-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .fw-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .fw-name {
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .fw-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .fw-confidence {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .fw-card-body {
+      padding: 1rem;
+      font-size: 0.82rem;
+      line-height: 1.65;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .fw-card-body h3 { font-size: 0.85rem; color: var(--accent); margin: 0.75rem 0 0.3rem; }
+    .fw-card-body h4 { font-size: 0.8rem; color: var(--muted); margin: 0.75rem 0 0.3rem; }
+    .fw-card-body p { margin-bottom: 0.5rem; }
+    .fw-card-body ul, .fw-card-body ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
+    .fw-card-body li { margin-bottom: 0.2rem; }
+    .fw-card-body strong { color: var(--text); font-weight: 600; }
+    .fw-card-body em { color: var(--muted); }
+    .fw-card-body code {
+      background: var(--surface2);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 0.8rem;
+    }
+    .fw-card-body pre {
+      background: var(--surface2);
+      padding: 0.75rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 0.5rem 0;
+    }
+    .fw-card-body pre code { background: none; padding: 0; }
+
+    /* Sentiment chart */
+    #sentiment-section {
+      margin-top: 1.5rem;
+    }
+    #sentiment-section h3 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    #sentiment-canvas-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    canvas { display: block; max-width: 100%; }
+
+    .chart-legend {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* Synthesis tab */
+    .synthesis-content {
+      max-width: 800px;
+    }
+    .synthesis-content h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 1.5rem 0 0.5rem;
+      color: var(--accent);
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .synthesis-content h3 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 1rem 0 0.4rem;
+      color: var(--text);
+    }
+    .synthesis-content p { margin-bottom: 0.75rem; font-size: 0.85rem; line-height: 1.7; }
+    .synthesis-content ul, .synthesis-content ol {
+      padding-left: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .synthesis-content li { margin-bottom: 0.3rem; font-size: 0.85rem; line-height: 1.6; }
+    .synthesis-content strong { color: var(--text); }
+    .synthesis-content em { color: var(--muted); }
+    .synthesis-content code {
+      background: var(--surface);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 0.8rem;
+    }
+    .synthesis-content pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+    .synthesis-content pre code { background: none; padding: 0; }
+
+    /* Tables */
+    .md-table-wrap { overflow-x: auto; margin: 0.75rem 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+    th {
+      background: var(--surface2);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid var(--border);
+    }
+    td {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #0d1117; }
+
+    /* Graveyard section */
+    .graveyard-section {
+      background: #1a1010;
+      border: 1px solid #3a1a1a;
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 0.75rem 0;
+    }
+    .graveyard-section h3 {
+      color: #f87171 !important;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 2rem;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg {
+      background: #1a1010;
+      border: 1px solid #3a1a1a;
+      border-radius: 8px;
+      padding: 1rem;
+      color: #f87171;
+      font-size: 0.85rem;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <!-- ── Sidebar ─────────────────────────────────────── -->
+  <nav id="sidebar">
+    <div id="sidebar-header">
+      <h1>⚙ MACE</h1>
+      <p>Multi-Agent Consensus Engine</p>
+    </div>
+    <div id="debate-list">
+      <div id="sidebar-empty" class="loading">
+        <div class="spinner"></div>
+        Loading debates...
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main ───────────────────────────────────────── -->
+  <main id="main">
+    <div id="welcome">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+      </svg>
+      <h2>Select a debate to view</h2>
+      <p>Run <code>node mace.mjs "Your topic"</code> to generate one</p>
+    </div>
+
+    <div id="debate-view">
+      <div id="debate-header">
+        <h2 id="dv-topic"></h2>
+        <div id="debate-meta">
+          <div class="meta-item">
+            <span>Status:</span>
+            <strong id="dv-status"></strong>
+          </div>
+          <div class="meta-item consensus-meter">
+            <span>Consensus:</span>
+            <div class="meter-track"><div class="meter-fill" id="dv-meter"></div></div>
+            <strong id="dv-consensus"></strong>
+          </div>
+          <div class="meta-item">
+            <span>Completed:</span>
+            <strong id="dv-date"></strong>
+          </div>
+        </div>
+      </div>
+
+      <div id="tabs"></div>
+      <div id="tab-content"></div>
+    </div>
+  </main>
+
+<script>
+// ── Utilities ────────────────────────────────────────────────────────────────
+
+const FW_COLORS = {
+  architect:  '#3b82f6',
+  auditor:    '#ef4444',
+  pragmatist: '#22c55e',
+  contrarian: '#a855f7',
+};
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── Minimal Markdown Renderer ────────────────────────────────────────────────
+
+function mdToHtml(md) {
+  if (!md) return '';
+  let html = md;
+
+  // Escape HTML first
+  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Fenced code blocks
+  html = html.replace(/```[\w]*\n([\s\S]*?)```/g, (_, code) =>
+    `<pre><code>${code.trim()}</code></pre>`);
+
+  // Tables
+  html = html.replace(/((?:\|.+\|\n)+)/g, (block) => {
+    const rows = block.trim().split('\n').filter(r => r.trim());
+    let out = '<div class="md-table-wrap"><table>';
+    rows.forEach((row, i) => {
+      if (/^\|[-| :]+\|$/.test(row)) return; // separator row
+      const cells = row.split('|').filter((_, ci) => ci > 0 && ci < row.split('|').length - 1);
+      const tag = i === 0 ? 'th' : 'td';
+      out += `<tr>${cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join('')}</tr>`;
+    });
+    out += '</table></div>';
+    return out;
+  });
+
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+  // Bold / italic / inline code
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Unordered lists
+  html = html.replace(/((?:^[*\-] .+\n?)+)/gm, (block) => {
+    const items = block.trim().split('\n').map(l => `<li>${l.replace(/^[*\-] /, '')}</li>`).join('');
+    return `<ul>${items}</ul>`;
+  });
+
+  // Numbered lists
+  html = html.replace(/((?:^\d+\. .+\n?)+)/gm, (block) => {
+    const items = block.trim().split('\n').map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`).join('');
+    return `<ol>${items}</ol>`;
+  });
+
+  // Paragraphs (double newline → paragraph break)
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = `<p>${html}</p>`;
+
+  // Cleanup
+  html = html.replace(/<p>(<h[23]>)/g, '$1');
+  html = html.replace(/(<\/h[23]>)<\/p>/g, '$1');
+  html = html.replace(/<p>(<(?:ul|ol|pre|div|table)>)/g, '$1');
+  html = html.replace(/(<\/(?:ul|ol|pre|div|table)>)<\/p>/g, '$1');
+  html = html.replace(/<p>\s*<\/p>/g, '');
+
+  return html;
+}
+
+// ── Sentiment Chart (Canvas) ──────────────────────────────────────────────────
+
+function drawSentimentChart(canvas, participants) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth || 600;
+  const H = 180;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const PAD = { top: 16, right: 20, bottom: 36, left: 40 };
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top - PAD.bottom;
+
+  // Background
+  ctx.fillStyle = '#161b22';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = '#30363d';
+  ctx.lineWidth = 0.5;
+  [0, 25, 50, 75, 100].forEach(y => {
+    const yPx = PAD.top + cH - (y / 100 * cH);
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, yPx);
+    ctx.lineTo(PAD.left + cW, yPx);
+    ctx.stroke();
+    ctx.fillStyle = '#8b949e';
+    ctx.font = `10px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(y + '%', PAD.left - 6, yPx + 3.5);
+  });
+
+  const maxRound = Math.max(...participants.map(p => p.confidence_history.length));
+  if (maxRound < 1) return;
+
+  // X-axis labels
+  for (let r = 0; r < maxRound; r++) {
+    const xPx = PAD.left + (r / (maxRound - 1 || 1)) * cW;
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`R${r + 1}`, xPx, H - 8);
+  }
+
+  // Lines per participant
+  participants.forEach(p => {
+    const hist = p.confidence_history;
+    if (!hist.length) return;
+    const color = FW_COLORS[p.role] || '#8b949e';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    hist.forEach((val, i) => {
+      const xPx = PAD.left + (i / (maxRound - 1 || 1)) * cW;
+      const yPx = PAD.top + cH - (val / 100 * cH);
+      i === 0 ? ctx.moveTo(xPx, yPx) : ctx.lineTo(xPx, yPx);
+    });
+    ctx.stroke();
+
+    // Dots
+    hist.forEach((val, i) => {
+      const xPx = PAD.left + (i / (maxRound - 1 || 1)) * cW;
+      const yPx = PAD.top + cH - (val / 100 * cH);
+      ctx.beginPath();
+      ctx.arc(xPx, yPx, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    });
+  });
+}
+
+// ── App State ────────────────────────────────────────────────────────────────
+
+let currentDebate = null;
+
+// ── Load Sidebar ──────────────────────────────────────────────────────────────
+
+async function loadDebateList() {
+  const list = document.getElementById('debate-list');
+  const empty = document.getElementById('sidebar-empty');
+
+  try {
+    const res = await fetch('../debates/index.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const debates = data.debates || [];
+
+    if (!debates.length) {
+      empty.className = '';
+      empty.textContent = 'No debates yet. Run mace.mjs to generate one.';
+      return;
+    }
+
+    empty.remove();
+
+    debates.forEach(d => {
+      const el = document.createElement('div');
+      el.className = 'debate-item';
+      el.dataset.id = d.id;
+      el.innerHTML = `
+        <div class="item-topic">${d.topic}</div>
+        <div class="item-meta">
+          <span class="badge ${d.status === 'completed' ? 'badge-completed' : 'badge-in-progress'}">${d.status}</span>
+          <span class="item-date">${fmtDate(d.completed_at)}</span>
+          ${d.consensus_level != null ? `<span class="badge" style="background:#1a2a1a;color:#fbbf24">${d.consensus_level}%</span>` : ''}
+        </div>
+      `;
+      el.addEventListener('click', () => loadDebate(d.id, el));
+      list.appendChild(el);
+    });
+  } catch (e) {
+    empty.className = 'error-msg';
+    empty.textContent = `Could not load debates: ${e.message}. Make sure you're running a file server.`;
+  }
+}
+
+// ── Load Individual Debate ────────────────────────────────────────────────────
+
+async function loadDebate(id, itemEl) {
+  // Mark active
+  document.querySelectorAll('.debate-item').forEach(el => el.classList.remove('active'));
+  itemEl.classList.add('active');
+
+  const content = document.getElementById('tab-content');
+  content.innerHTML = '<div class="loading"><div class="spinner"></div>Loading debate...</div>';
+
+  document.getElementById('welcome').style.display = 'none';
+  const view = document.getElementById('debate-view');
+  view.style.display = 'flex';
+
+  try {
+    const res = await fetch(`../debates/${id}/debate_data.json`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    currentDebate = data;
+    renderDebate(data);
+  } catch (e) {
+    content.innerHTML = `<div class="error-msg">Could not load debate data: ${e.message}</div>`;
+  }
+}
+
+// ── Render Debate ─────────────────────────────────────────────────────────────
+
+function renderDebate(data) {
+  // Header
+  document.getElementById('dv-topic').textContent = data.topic || data.brief?.problem_statement || '';
+  document.getElementById('dv-status').textContent = data.status || '—';
+  document.getElementById('dv-consensus').textContent = `${data.consensus_level ?? 0}%`;
+  document.getElementById('dv-meter').style.width = `${data.consensus_level ?? 0}%`;
+  document.getElementById('dv-date').textContent = fmtDate(data.completed_at);
+
+  // Build tabs
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+  const tabDefs = [
+    { id: 'brief', label: '📋 Brief' },
+    ...( data.rounds || []).map(r => ({
+      id: `round-${r.round}`,
+      label: `Round ${r.round}`,
+    })),
+    { id: 'sentiment', label: '📈 Sentiment' },
+    { id: 'synthesis', label: '🎯 Synthesis' },
+  ];
+
+  tabDefs.forEach((t, i) => {
+    const btn = document.createElement('button');
+    btn.className = `tab-btn${i === 0 ? ' active' : ''}`;
+    btn.textContent = t.label;
+    btn.dataset.tab = t.id;
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTab(t.id, data);
+    });
+    tabs.appendChild(btn);
+  });
+
+  renderTab('brief', data);
+}
+
+function renderTab(tabId, data) {
+  const content = document.getElementById('tab-content');
+
+  if (tabId === 'brief') {
+    const b = data.brief || {};
+    const constraints = (b.assumed_constraints || []).map(c => `<li>${c}</li>`).join('');
+    content.innerHTML = `
+      <div class="brief-grid">
+        <div class="info-card" style="grid-column: 1 / -1">
+          <h4>Problem Statement</h4>
+          <p>${b.problem_statement || '—'}</p>
+        </div>
+        <div class="info-card">
+          <h4>Assumed Constraints</h4>
+          <ul>${constraints || '<li>None specified</li>'}</ul>
+        </div>
+        <div class="info-card">
+          <h4>Success Criteria</h4>
+          <p>${b.success_criteria || '—'}</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (tabId === 'sentiment') {
+    const participants = data.participants || [];
+    content.innerHTML = `
+      <div id="sentiment-section">
+        <h3>Confidence Tracking — by Round</h3>
+        <div id="sentiment-canvas-wrap">
+          <canvas id="sentiment-canvas"></canvas>
+          <div class="chart-legend">
+            ${participants.map(p => `
+              <div class="legend-item">
+                <div class="legend-dot" style="background:${FW_COLORS[p.role] || '#8b949e'}"></div>
+                ${p.name}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    const canvas = document.getElementById('sentiment-canvas');
+    setTimeout(() => drawSentimentChart(canvas, participants), 50);
+    return;
+  }
+
+  if (tabId === 'synthesis') {
+    const md = data.synthesis || '*No synthesis generated.*';
+    const html = mdToHtml(md);
+    // Highlight Graveyard section
+    const highlighted = html.replace(
+      /(<h[23][^>]*>The Graveyard<\/h[23]>)/i,
+      '<div class="graveyard-section">$1'
+    ).replace(
+      /(<h[23][^>]*>(?:Final Recommendation|Sentiment Timeline)<\/h[23]>)/i,
+      '</div>$1'
+    );
+    content.innerHTML = `<div class="synthesis-content">${highlighted}</div>`;
+    return;
+  }
+
+  // Round tab
+  const roundNum = parseInt(tabId.split('-')[1], 10);
+  const round = (data.rounds || []).find(r => r.round === roundNum);
+  if (!round) { content.innerHTML = '<p>Round not found.</p>'; return; }
+
+  const typeLabels = {
+    divergence: 'Divergence',
+    cross_examination: 'Cross-Examination',
+    forced_compromise: 'Forced Compromise',
+  };
+
+  const fwCards = (round.perFramework || []).map(fw => {
+    const color = FW_COLORS[fw.role] || '#8b949e';
+    const confMatch = fw.content?.match(/confidence[:\s]+(\d+)/i);
+    const conf = confMatch ? confMatch[1] + '%' : null;
+    return `
+      <div class="fw-card">
+        <div class="fw-card-header">
+          <div class="fw-name">
+            <div class="fw-dot" style="background:${color}"></div>
+            ${fw.name}
+          </div>
+          ${conf ? `<div class="fw-confidence">Conf: ${conf}</div>` : ''}
+        </div>
+        <div class="fw-card-body">${mdToHtml(fw.content)}</div>
+      </div>
+    `;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="round-header">
+      <h3>Round ${round.round}</h3>
+      <span class="round-type-badge type-${round.type}">${typeLabels[round.type] || round.type}</span>
+    </div>
+    <div class="framework-grid">${fwCards}</div>
+  `;
+}
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+
+loadDebateList();
+</script>
+</body>
+</html>

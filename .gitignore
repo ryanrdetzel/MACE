@@ -1,0 +1,15 @@
+# Debate output (generated at runtime)
+debates/*/
+debates/index.json
+
+# Python virtual environment
+.venv/
+
+# Claude Code local settings
+.claude/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
