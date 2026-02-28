@@ -17,8 +17,8 @@ const FRAMEWORKS = JSON.parse(
   fs.readFileSync(new URL("./config/frameworks.json", import.meta.url)),
 );
 
-const MAX_ROUNDS = 4;
-const CONSENSUS_THRESHOLD = 80;
+const DEFAULT_MAX_ROUNDS = 3;
+const DEFAULT_CONSENSUS_THRESHOLD = 70;
 
 // ── Model Invocation ────────────────────────────────────────────────────────
 
@@ -203,12 +203,23 @@ async function runEngine(topic) {
     : [];
   const resolvedKeys = selectedKeys.length >= 2 ? selectedKeys : DEFAULT_FRAMEWORKS;
 
+  const MAX_ROUNDS = Number.isInteger(brief.max_rounds) && brief.max_rounds >= 2 && brief.max_rounds <= 5
+    ? brief.max_rounds
+    : DEFAULT_MAX_ROUNDS;
+  const CONSENSUS_THRESHOLD = Number.isInteger(brief.consensus_threshold) && brief.consensus_threshold >= 50 && brief.consensus_threshold <= 85
+    ? brief.consensus_threshold
+    : DEFAULT_CONSENSUS_THRESHOLD;
+
   if (brief.selection_rationale) {
     console.log(`   ✓ Panel : ${resolvedKeys.join(", ")}`);
-    console.log(`   ✓ Why   : ${brief.selection_rationale}\n`);
+    console.log(`   ✓ Why   : ${brief.selection_rationale}`);
   } else {
-    console.log(`   ✓ Panel : ${resolvedKeys.join(", ")} (default)\n`);
+    console.log(`   ✓ Panel : ${resolvedKeys.join(", ")} (default)`);
   }
+  console.log(`   ✓ Threshold : ${CONSENSUS_THRESHOLD}% consensus to conclude`);
+  console.log(`   ✓ Max rounds: ${MAX_ROUNDS}`);
+  if (brief.parameter_rationale) console.log(`   ✓ Why   : ${brief.parameter_rationale}`);
+  console.log();
 
   const frameworks = resolvedKeys.map((k) => [k, FRAMEWORKS.frameworks[k]]);
 

@@ -31,11 +31,23 @@ export const getIntakePrompt = (userQuery, frameworkCatalog) => `
 You are the MACE Intake Coordinator. Analyze the following user query:
 "${userQuery}"
 
-Your job is to clarify the problem, establish constraints, and select the most relevant debate panel for this specific topic.
+Your job is to clarify the problem, establish constraints, select the most relevant debate panel, and calibrate the debate parameters for this specific topic.
 
 ## Available Frameworks
 Choose 3-4 frameworks that will produce the most insightful debate for this topic. Always include at least one "universal" category framework.
 ${Object.entries(frameworkCatalog).map(([key, f]) => `- ${key} (${f.category}): ${f.description}`).join('\n')}
+
+## Debate Parameter Guidance
+
+**consensus_threshold** (50–85, default 70): The minimum agreement percentage to conclude the debate early.
+- Lower (50–60): Personal decisions, exploratory questions, topics where reasonable people will always disagree
+- Default (65–70): Most technical and strategic decisions
+- Higher (75–85): High-stakes, irreversible, or safety-critical decisions where weak consensus is dangerous
+
+**max_rounds** (2–5, default 3): Maximum cross-examination rounds before forcing a compromise.
+- Fewer rounds (2): Simple or time-sensitive topics, or when a low threshold means consensus is reachable quickly
+- Default (3): Most topics
+- More rounds (4–5): Complex multi-system decisions, high-stakes topics with a high threshold, or topics with deep genuine tradeoffs
 
 Output ONLY valid JSON matching this schema — no markdown, no explanation:
 {
@@ -43,7 +55,10 @@ Output ONLY valid JSON matching this schema — no markdown, no explanation:
   "assumed_constraints": ["List of implied constraints extracted from the query"],
   "success_criteria": "What constitutes a successfully resolved debate?",
   "selected_frameworks": ["key1", "key2", "key3"],
-  "selection_rationale": "One sentence explaining why these frameworks fit this topic"
+  "selection_rationale": "One sentence explaining why these frameworks fit this topic",
+  "consensus_threshold": 70,
+  "max_rounds": 3,
+  "parameter_rationale": "One sentence explaining the threshold and round choices"
 }
 `;
 
@@ -55,6 +70,19 @@ ${JSON.stringify(brief, null, 2)}
 
 ## Your Persona Mandate
 **${framework.name}**: ${framework.mandate}
+
+## Research Tools Available
+You have access to tools including web search and filesystem exploration. Use your judgment — if this topic would benefit from external evidence, use your tools to research before forming your position. Examples of when to research:
+- Codebase topics: explore relevant files, configs, dependencies, or patterns at the path provided
+- Technical claims: look up benchmarks, CVEs, changelogs, official documentation, or migration guides
+- Best practices: find current industry standards or recent case studies
+
+If you conduct research, you MUST include a **### Research & Sources** section that documents:
+- What you searched for and why it was relevant
+- Key facts or findings you uncovered
+- Direct citations (URLs, file paths, line numbers) so other agents can verify or counter your evidence
+
+If no external research is needed for this topic, omit the Research & Sources section entirely.
 
 ## Your Task
 Provide your initial independent analysis. Do NOT be influenced by what others might say.
@@ -68,6 +96,9 @@ Concrete steps, architecture, or approach you advocate for.
 
 ### Known Risks
 3-5 risks with your own proposal (intellectual honesty is required).
+
+### Research & Sources
+*(Include only if you used tools to research. List what you found and direct citations.)*
 
 ### Confidence Level
 State your confidence as: "Confidence: XX%" (e.g., "Confidence: 75%")
@@ -87,11 +118,17 @@ ${JSON.stringify(brief, null, 2)}
 ${previousRoundText}
 ---
 
+## Research Tools Available
+You may use your tools (web search, filesystem exploration) to challenge or validate claims and sources cited by your peers. If a peer cited evidence, you can verify it, find contradicting sources, or go deeper on a disputed point. If you conduct research, include a **### Research & Sources** section with direct citations so the record is traceable.
+
 ## Your Task
 1. **Identify the 3 most dangerous assumptions** in your peers' logic, filtered through your mandate.
-2. **Attack or defend** each assumption with specific, concrete reasoning.
+2. **Attack or defend** each assumption with specific, concrete reasoning. If a peer cited sources, engage with them directly.
 3. **Propose a compromise** — or state exactly *why* you cannot compromise and what would need to change for you to do so.
 4. **Revise your position** if peer arguments have merit. Acknowledge shifts explicitly.
+
+### Research & Sources
+*(Include only if you used tools during this round. List findings and direct citations.)*
 
 ### Confidence Level
 State your updated confidence as: "Confidence: XX%"
